@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель | ЮрКонсультант ИИ</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #f4f7f6; color: #333; }
+        header { background: #2c3e50; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { margin: 0; font-size: 1.3rem; }
+        header a { color: #ecf0f1; text-decoration: none; padding: 8px 16px; background: #34495e; border-radius: 6px; }
+        header a:hover { background: #3d566e; }
+
+        .tabs { display: flex; background: white; border-bottom: 1px solid #ddd; padding: 0 30px; }
+        .tab { padding: 15px 25px; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; color: #7f8c8d; }
+        .tab.active { color: #2c3e50; border-bottom-color: #e67e22; }
+        .tab:hover { background: #f8f9fa; }
+
+        .container { padding: 30px; max-width: 1200px; margin: 0 auto; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        .panel h2 { margin-top: 0; color: #2c3e50; }
+
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; vertical-align: top; }
+        th { background: #ecf0f1; color: #2c3e50; font-weight: 600; }
+        tr:last-child td { border-bottom: none; }
+        td.actions { white-space: nowrap; }
+
+        .btn { padding: 8px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 0.9rem; }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-success { background: #2ecc71; color: white; }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-secondary { background: #95a5a6; color: white; }
+        .btn:hover { opacity: 0.9; }
+        .btn + .btn { margin-left: 5px; }
+
+        .form-row { margin-bottom: 12px; }
+        .form-row label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; }
+        .form-row input, .form-row textarea, .form-row select {
+            width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.95rem; box-sizing: border-box;
+        }
+        .form-row textarea { min-height: 80px; resize: vertical; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 100; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: white; border-radius: 8px; padding: 25px; width: 500px; max-width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal h3 { margin-top: 0; color: #2c3e50; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .stat-card .label { color: #7f8c8d; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card .value { font-size: 2rem; font-weight: bold; color: #2c3e50; margin-top: 5px; }
+
+        .toolbar { margin-bottom: 15px; }
+        .empty { padding: 40px; text-align: center; color: #95a5a6; }
+        .role-badge { padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+        .role-admin { background: #e67e22; color: white; }
+        .role-user { background: #95a5a6; color: white; }
+
+        .access-denied { padding: 60px 30px; text-align: center; color: #c0392b; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>⚙️ Админ-панель — ЮрКонсультант ИИ</h1>
+    <div>
+        <span id="admin-name" style="margin-right: 15px;"></span>
+        <a href="/">← К чату</a>
+    </div>
+</header>
+
+<div id="access-denied" class="access-denied" style="display:none;">
+    🚫 Доступ запрещён. Эта страница доступна только администраторам.<br><br>
+    <a href="/" class="btn btn-primary" style="text-decoration:none; display:inline-block;">Вернуться к чату</a>
+</div>
+
+<div id="main-content" style="display:none;">
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('stats')">📊 Статистика</div>
+        <div class="tab" onclick="switchTab('legal')">📖 НПА</div>
+        <div class="tab" onclick="switchTab('situations')">📋 Сценарии</div>
+        <div class="tab" onclick="switchTab('users')">👥 Пользователи</div>
+        <div class="tab" onclick="switchTab('config')">⚙️ Конфигурация</div>
+    </div>
+
+    <div class="container">
+
+        <!-- ============================================ -->
+        <!-- СТАТИСТИКА -->
+        <!-- ============================================ -->
+        <div id="panel-stats" class="panel active">
+            <h2>Статистика системы</h2>
+            <div class="toolbar"><button class="btn btn-secondary" onclick="loadStats()">🔄 Обновить</button></div>
+            <div class="stats-grid" id="stats-grid"></div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- НПА -->
+        <!-- ============================================ -->
+        <div id="panel-legal" class="panel">
+            <h2>Нормативно-правовые акты</h2>
+            <div class="toolbar">
+                <button class="btn btn-success" onclick="openLegalModal()">+ Добавить НПА</button>
+                <button class="btn btn-secondary" onclick="loadLegal()">🔄 Обновить</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Заголовок</th>
+                        <th>Статья</th>
+                        <th>Содержимое</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="legal-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- СЦЕНАРИИ -->
+        <!-- ============================================ -->
+        <div id="panel-situations" class="panel">
+            <h2>Типовые сценарии</h2>
+            <div class="toolbar">
+                <button class="btn btn-success" onclick="openSituationModal()">+ Добавить сценарий</button>
+                <button class="btn btn-secondary" onclick="loadSituations()">🔄 Обновить</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Категория</th>
+                        <th>Заголовок</th>
+                        <th>Инструкция</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="situations-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- ПОЛЬЗОВАТЕЛИ -->
+        <!-- ============================================ -->
+        <div id="panel-users" class="panel">
+            <h2>Пользователи</h2>
+            <div class="toolbar"><button class="btn btn-secondary" onclick="loadUsers()">🔄 Обновить</button></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Имя</th>
+                        <th>Email</th>
+                        <th>Роль</th>
+                        <th>Создан</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- КОНФИГУРАЦИЯ -->
+        <!-- ============================================ -->
+        <div id="panel-config" class="panel">
+            <h2>Конфигурация бота</h2>
+            <div class="toolbar"><button class="btn btn-secondary" onclick="loadConfig()">🔄 Загрузить</button></div>
+
+            <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div class="form-row">
+                    <label>Системный промпт</label>
+                    <textarea id="cfg-prompt" rows="6"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>Температура (0.0 – 1.0)</label>
+                    <input type="number" id="cfg-temp" step="0.1" min="0" max="1">
+                </div>
+                <div class="form-row">
+                    <label>Max tokens</label>
+                    <input type="number" id="cfg-tokens" min="1">
+                </div>
+                <div class="form-row">
+                    <label>Запрещённые темы (JSON-строка)</label>
+                    <textarea id="cfg-restricted" rows="3" placeholder='["тема1", "тема2"]'></textarea>
+                </div>
+                <button class="btn btn-success" onclick="saveConfig()">Сохранить</button>
+                <span id="cfg-status" style="margin-left: 15px;"></span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ============================================ -->
+<!-- МОДАЛЬНОЕ ОКНО -->
+<!-- ============================================ -->
+<div id="modal-overlay" class="modal-overlay">
+    <div class="modal">
+        <h3 id="modal-title"></h3>
+        <div id="modal-body"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+            <button class="btn btn-success" id="modal-save-btn">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ====================================================
+// Аутентификация и инициализация
+// ====================================================
+const userId = localStorage.getItem('user_id');
+const username = localStorage.getItem('username');
+const role = localStorage.getItem('role');
+
+if (!userId) {
+    window.location.href = '/';
+}
+if (role !== 'admin') {
+    document.getElementById('access-denied').style.display = 'block';
+} else {
+    document.getElementById('main-content').style.display = 'block';
+    document.getElementById('admin-name').innerText = `Администратор: ${username}`;
+    loadStats();
+}
+
+// Все запросы должны нести заголовок X-User-Id для прохождения require_admin.
+function authHeaders(extra = {}) {
+    return { 'X-User-Id': userId, ...extra };
+}
+
+async function api(method, url, body = null) {
+    const opts = {
+        method,
+        headers: body
+            ? authHeaders({ 'Content-Type': 'application/json' })
+            : authHeaders(),
+    };
+    if (body) opts.body = JSON.stringify(body);
+
+    const res = await fetch(url, opts);
+    if (res.status === 204) return null;
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Ошибка' }));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+}
+
+// ====================================================
+// Переключение вкладок
+// ====================================================
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById(`panel-${name}`).classList.add('active');
+
+    if (name === 'stats') loadStats();
+    if (name === 'legal') loadLegal();
+    if (name === 'situations') loadSituations();
+    if (name === 'users') loadUsers();
+    if (name === 'config') loadConfig();
+}
+
+// ====================================================
+// Статистика
+// ====================================================
+async function loadStats() {
+    try {
+        const data = await api('GET', '/api/admin/stats');
+        const labels = {
+            total_users: 'Пользователей',
+            total_admins: 'Администраторов',
+            total_conversations: 'Диалогов',
+            total_messages: 'Сообщений всего',
+            user_messages: 'От пользователей',
+            bot_messages: 'От бота',
+            total_feedbacks: 'Оценок всего',
+            positive_feedbacks: '👍 Лайков',
+            negative_feedbacks: '👎 Дизлайков',
+            total_legal_materials: 'НПА в базе',
+            total_situations: 'Типовых сценариев',
+        };
+        const grid = document.getElementById('stats-grid');
+        grid.innerHTML = '';
+        for (const [key, label] of Object.entries(labels)) {
+            grid.innerHTML += `
+                <div class="stat-card">
+                    <div class="label">${label}</div>
+                    <div class="value">${data[key]}</div>
+                </div>`;
+        }
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+// ====================================================
+// НПА
+// ====================================================
+async function loadLegal() {
+    try {
+        const data = await api('GET', '/api/admin/legal-materials');
+        const tbody = document.getElementById('legal-tbody');
+        tbody.innerHTML = data.length === 0
+            ? `<tr><td colspan="5" class="empty">Нет записей</td></tr>`
+            : data.map(item => `
+                <tr>
+                    <td>${item.material_id}</td>
+                    <td>${escapeHtml(item.title)}</td>
+                    <td>${escapeHtml(item.article_number || '—')}</td>
+                    <td>${escapeHtml((item.content || '').substring(0, 100))}${item.content.length > 100 ? '…' : ''}</td>
+                    <td class="actions">
+                        <button class="btn btn-warning" onclick='openLegalModal(${JSON.stringify(item)})'>✏️</button>
+                        <button class="btn btn-danger" onclick="deleteLegal(${item.material_id})">🗑️</button>
+                    </td>
+                </tr>`).join('');
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+function openLegalModal(item = null) {
+    const isEdit = item !== null;
+    document.getElementById('modal-title').innerText = isEdit ? 'Редактировать НПА' : 'Новый НПА';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-row"><label>Заголовок</label><input id="m-title" value="${item ? escapeHtml(item.title) : ''}"></div>
+        <div class="form-row"><label>Номер статьи</label><input id="m-article" value="${item && item.article_number ? escapeHtml(item.article_number) : ''}"></div>
+        <div class="form-row"><label>Содержимое</label><textarea id="m-content" rows="8">${item ? escapeHtml(item.content) : ''}</textarea></div>
+        <div class="form-row"><label>Источник (URL)</label><input id="m-url" value="${item && item.source_url ? escapeHtml(item.source_url) : ''}"></div>
+    `;
+    document.getElementById('modal-save-btn').onclick = async () => {
+        const body = {
+            title: document.getElementById('m-title').value,
+            article_number: document.getElementById('m-article').value || null,
+            content: document.getElementById('m-content').value,
+            source_url: document.getElementById('m-url').value || null,
+        };
+        try {
+            if (isEdit) {
+                await api('PUT', `/api/admin/legal-materials/${item.material_id}`, body);
+            } else {
+                await api('POST', '/api/admin/legal-materials', body);
+            }
+            closeModal();
+            loadLegal();
+        } catch (e) { alert('Ошибка: ' + e.message); }
+    };
+    document.getElementById('modal-overlay').classList.add('show');
+}
+
+async function deleteLegal(id) {
+    if (!confirm('Удалить НПА #' + id + '?')) return;
+    try {
+        await api('DELETE', `/api/admin/legal-materials/${id}`);
+        loadLegal();
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+// ====================================================
+// Сценарии
+// ====================================================
+async function loadSituations() {
+    try {
+        const data = await api('GET', '/api/admin/situations');
+        const tbody = document.getElementById('situations-tbody');
+        tbody.innerHTML = data.length === 0
+            ? `<tr><td colspan="5" class="empty">Нет записей</td></tr>`
+            : data.map(item => `
+                <tr>
+                    <td>${item.situation_id}</td>
+                    <td>${escapeHtml(item.category)}</td>
+                    <td>${escapeHtml(item.title)}</td>
+                    <td>${escapeHtml(item.step_by_step_instruction.substring(0, 100))}${item.step_by_step_instruction.length > 100 ? '…' : ''}</td>
+                    <td class="actions">
+                        <button class="btn btn-warning" onclick='openSituationModal(${JSON.stringify(item)})'>✏️</button>
+                        <button class="btn btn-danger" onclick="deleteSituation(${item.situation_id})">🗑️</button>
+                    </td>
+                </tr>`).join('');
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+function openSituationModal(item = null) {
+    const isEdit = item !== null;
+    document.getElementById('modal-title').innerText = isEdit ? 'Редактировать сценарий' : 'Новый сценарий';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-row"><label>Категория</label><input id="m-cat" value="${item ? escapeHtml(item.category) : ''}"></div>
+        <div class="form-row"><label>Заголовок</label><input id="m-title" value="${item ? escapeHtml(item.title) : ''}"></div>
+        <div class="form-row"><label>Пошаговая инструкция</label><textarea id="m-steps" rows="10">${item ? escapeHtml(item.step_by_step_instruction) : ''}</textarea></div>
+    `;
+    document.getElementById('modal-save-btn').onclick = async () => {
+        const body = {
+            category: document.getElementById('m-cat').value,
+            title: document.getElementById('m-title').value,
+            step_by_step_instruction: document.getElementById('m-steps').value,
+        };
+        try {
+            if (isEdit) {
+                await api('PUT', `/api/admin/situations/${item.situation_id}`, body);
+            } else {
+                await api('POST', '/api/admin/situations', body);
+            }
+            closeModal();
+            loadSituations();
+        } catch (e) { alert('Ошибка: ' + e.message); }
+    };
+    document.getElementById('modal-overlay').classList.add('show');
+}
+
+async function deleteSituation(id) {
+    if (!confirm('Удалить сценарий #' + id + '?')) return;
+    try {
+        await api('DELETE', `/api/admin/situations/${id}`);
+        loadSituations();
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+// ====================================================
+// Пользователи
+// ====================================================
+async function loadUsers() {
+    try {
+        const data = await api('GET', '/api/admin/users');
+        const tbody = document.getElementById('users-tbody');
+        tbody.innerHTML = data.map(u => `
+            <tr>
+                <td>${u.user_id}</td>
+                <td>${escapeHtml(u.username)}</td>
+                <td>${escapeHtml(u.email)}</td>
+                <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+                <td>${new Date(u.created_at).toLocaleDateString()}</td>
+                <td class="actions">
+                    ${u.user_id != userId ? `
+                        <button class="btn btn-warning" onclick="toggleRole(${u.user_id}, '${u.role === 'admin' ? 'user' : 'admin'}')">
+                            ${u.role === 'admin' ? '↓ В юзеры' : '↑ В админы'}
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteUser(${u.user_id})">🗑️</button>
+                    ` : '<em style="color:#95a5a6;">это вы</em>'}
+                </td>
+            </tr>`).join('');
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+async function toggleRole(id, newRole) {
+    try {
+        await api('PATCH', `/api/admin/users/${id}/role`, { role: newRole });
+        loadUsers();
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+async function deleteUser(id) {
+    if (!confirm('Удалить пользователя #' + id + '?')) return;
+    try {
+        await api('DELETE', `/api/admin/users/${id}`);
+        loadUsers();
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+// ====================================================
+// Конфигурация
+// ====================================================
+async function loadConfig() {
+    try {
+        const data = await api('GET', '/api/admin/config');
+        document.getElementById('cfg-prompt').value = data.system_prompt || '';
+        document.getElementById('cfg-temp').value = data.temperature ?? 0.3;
+        document.getElementById('cfg-tokens').value = data.max_tokens ?? 2048;
+        document.getElementById('cfg-restricted').value = data.restricted_topics || '';
+        document.getElementById('cfg-status').innerText = '';
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+async function saveConfig() {
+    const body = {
+        system_prompt: document.getElementById('cfg-prompt').value,
+        temperature: parseFloat(document.getElementById('cfg-temp').value),
+        max_tokens: parseInt(document.getElementById('cfg-tokens').value),
+        restricted_topics: document.getElementById('cfg-restricted').value || null,
+    };
+    try {
+        await api('PUT', '/api/admin/config', body);
+        document.getElementById('cfg-status').innerText = '✓ Сохранено';
+        document.getElementById('cfg-status').style.color = '#27ae60';
+    } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+// ====================================================
+// Утилиты
+// ====================================================
+function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('show');
+}
+
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+@"
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Виртуалка
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Базы и векторное хранилище
+*.sqlite
+*.sqlite3
+chroma_data/
+
+# Секреты
+.env
+
+# Sphinx-сборка
+docs/_build/
+"@ | Out-File -FilePath .gitignore -Encoding utf8
